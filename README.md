@@ -20,11 +20,16 @@ optional arguments:
 ```
 
 ## K8s Deployment
-1. Create a Deployment
+1. One command:
+   ```Bash
+   kubectl apply -k k8s
+   ```
+2. Or:<br>
+   Create a Deployment
    ```Bash
    kubectl apply -f k8s/rexec-broker-deployment.yaml -n [namespace]
    ```   
-2. Expose the broker IP to external client and internal server via Service
+   Expose the broker IP to external client and internal server via Service
    ```Bash
    kubectl apply -f k8s/rexec-broker-service.yaml -n [namespace]
    ```   
