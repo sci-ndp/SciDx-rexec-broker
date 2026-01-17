@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: rexec-broker
-          image: bozhanghpc/rexec-broker:v05092025
+          image: yutianqin/scidx-rexec-broker:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5559
@@ -23,6 +23,9 @@ spec:
               protocol: TCP
             - containerPort: 5561
               protocol: TCP
+          env:
+            - name: AUTH_API_URL
+              value: "https://idp.nationaldataplatform.org/temp/information" # default auth API URL if not set in kustomization
           command:
             - sh
             - -c

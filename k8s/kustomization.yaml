@@ -5,3 +5,21 @@ resources:
   - rexec-broker-namespace.yaml
   - rexec-broker-deployment.yaml
   - rexec-broker-service.yaml
+
+# Modify the AUTH_API_URL environment variable; change <patches.patch.value> as needed
+# --------------------------------
+patches:
+  - target:
+      kind: Deployment
+      name: rexec-broker
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: "https://idp-test.nationaldataplatform.org/temp/information"
+
+# Uncomment and modify the following lines to set a specific image tag
+# --------------------------------
+# images:
+#   - name: yutianqin/scidx-rexec-broker
+#     newName: <desired-image-name>
+#     newTag: <desired-tag>

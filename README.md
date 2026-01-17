@@ -20,7 +20,9 @@ optional arguments:
 ```
 
 ## K8s Deployment
-1. One command:
+1. make sure the auth API URL in `k8s/kustomization.yaml` is set correctly.
+
+2. One command:
    ```Bash
    kubectl apply -k k8s
    ```

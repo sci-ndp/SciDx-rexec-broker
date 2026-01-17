@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 from rexec_broker.broker import RExecBroker
 
 if __name__ == "__main__":
@@ -17,6 +18,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--control_port", type=str, default="5561",
         help="The port for listening the termination signal. [0-65535]"
+    )
+
+    parser.add_argument(
+        "--auth_api_url", type=str, default=os.environ.get("AUTH_API_URL"),
+        help="Auth API URL for token validation."
     )
 
     parser.add_argument(
