@@ -68,12 +68,12 @@ class RExecBroker:
             
     def _reply_error(self, envelope, message):
         """
-        Send an error reply to a client.
+        Send a reply to a client (when server cannot process the request).
         """
         if not envelope:
             logging.error("Cannot reply to client without routing envelope: %s", message)
             return
-        payload = pickle.dumps({"error": message})
+        payload = pickle.dumps(message)
         self.frontend_socket.send_multipart(envelope + [b"", payload])
     
     def _proxy_loop(self):
@@ -147,7 +147,7 @@ class RExecBroker:
                     self.backend_socket.send_multipart(outbound) # route to server
                 except zmq.ZMQError as exc:
                     logging.warning("Backend route failed for %s: %s", user_id, exc)
-                    self._reply_error(envelope, f"Server not available for user {user_id}.")
+                    self._reply_error(envelope, f"Server not ready/available for user {user_id}.")
             
             # Handle server response message
             # ----------------------------------------------
