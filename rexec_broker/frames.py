@@ -48,6 +48,7 @@ def log_routing_envelope(direction, frames, from_addr, to_addr, server_id=None):
     client_id = format_identity(envelope[0]) if envelope else "<unknown>"
     server_label = server_id if server_id else "<unknown>"
 
+    # if no delimiter, log "unknown" envelope
     if delimiter_index is None:
         logging.info(
             "  %s | client=%s | server=%s | from=%s to=%s | routing envelope: <unknown> (no empty delimiter)",
@@ -57,6 +58,7 @@ def log_routing_envelope(direction, frames, from_addr, to_addr, server_id=None):
             from_addr,
             to_addr,
         )
+    # if delimiter found, log envelope identities and body sizes
     else:
         envelope_ids = [format_identity(frame) for frame in envelope]
         body_sizes = [len(frame) for frame in body]

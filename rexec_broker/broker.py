@@ -1,16 +1,18 @@
+import logging
 import os
 import pickle
-import logging
 import threading
+import time
 from typing import Any, Dict
 
 import zmq
 import zmq.utils.monitor
 
 from rexec_broker.auth import validate_token
-from rexec_broker.frames import log_routing_envelope, split_envelope
+from rexec_broker.frames import format_identity, log_routing_envelope, split_envelope
 
 EVENT_MAP = {}
+HEARTBEAT_FRAME = b"__REXEC_HEARTBEAT__"
 
 def setup_event_map(event_map: list):
     logging.debug("Event names:")
@@ -37,6 +39,7 @@ def event_monitor(monitor_socket: zmq.Socket, socket_name: str) -> None:
 class RExecBroker:
     def __init__(self, args):
         self.zmq_context = zmq.Context()
+        self.server_last_seen: Dict[bytes, float] = {} # server_id, last seen timestamp; for heartbeat tracking
         
         self.frontend_zmq_addr = "tcp://*:" + args.client_port
         self.frontend_socket = self.zmq_context.socket(zmq.ROUTER)
@@ -75,6 +78,15 @@ class RExecBroker:
             return
         payload = pickle.dumps(message)
         self.frontend_socket.send_multipart(envelope + [b"", payload])
+
+    def _record_server_activity(self, server_id: bytes) -> None:
+        self.server_last_seen[server_id] = time.monotonic()
+
+    def _is_heartbeat(self, payload) -> bool:
+        envelope, delimiter_index, body = split_envelope(payload)
+        if delimiter_index is None or envelope:
+            return False
+        return len(body) == 1 and body[0] == HEARTBEAT_FRAME
     
     def _proxy_loop(self):
         """
@@ -159,6 +171,16 @@ class RExecBroker:
                 # frames = Received:[server_id, envelope(client_id), delimiter(b""), body(pret)]
                 server_id = frames[0]
                 payload = frames[1:]
+                # Log keepalive activity if it's a heartbeat msg
+                if self._is_heartbeat(payload):
+                    self._record_server_activity(server_id)
+                    logging.debug(
+                        "Heartbeat received from server %s",
+                        server_id.decode("utf-8", errors="replace"),
+                    )
+                    continue
+                self._record_server_activity(server_id)
+                # Log routing info for non-heartbeat messages
                 log_routing_envelope(
                     "Backend->Frontend",
                     payload,
