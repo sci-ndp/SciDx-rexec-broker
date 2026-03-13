@@ -1,10 +1,10 @@
 import logging
 import os
-import pickle
 import threading
 import time
 from typing import Any, Dict
 
+import dill
 import zmq
 import zmq.utils.monitor
 
@@ -13,6 +13,7 @@ from rexec_broker.frames import format_identity, log_routing_envelope, split_env
 
 EVENT_MAP = {}
 HEARTBEAT_FRAME = b"__REXEC_HEARTBEAT__"
+STREAM_CANCEL_FRAME = b"__REXEC_CANCEL__"
 
 def setup_event_map(event_map: list):
     logging.debug("Event names:")
@@ -76,7 +77,7 @@ class RExecBroker:
         if not envelope:
             logging.error("Cannot reply to client without routing envelope: %s", message)
             return
-        payload = pickle.dumps(message)
+        payload = dill.dumps(message)
         self.frontend_socket.send_multipart(envelope + [b"", payload])
 
     def _record_server_activity(self, server_id: bytes) -> None:
@@ -119,7 +120,7 @@ class RExecBroker:
                 envelope, delimiter_index, body = split_envelope(frames)
 
                 # Logging and validation
-                if delimiter_index is None or len(body) < 3:
+                if delimiter_index is None or len(body) < 2:
                     log_routing_envelope(
                         "Frontend->Backend",
                         frames,
@@ -141,15 +142,41 @@ class RExecBroker:
                 if not user_id:
                     self._reply_error(envelope, "Token validation failed.")
                     continue
-
-                # Route to appropriate server based on user_id; Server identity is user_id encoded in utf-8
+                
+                # Use user_id as server_id for routing; this assumes a 1:1 mapping between users and servers,
                 server_id = user_id.encode("utf-8")
+
+                # Route CANCEL request:
+                # client origin cancel request: body(token, "__REXEC_CANCEL__", "keyboard_interrupt")
+                if len(body) >= 2 and body[1] == STREAM_CANCEL_FRAME:
+                    cancel_body = body[1:] if len(body) > 2 else [STREAM_CANCEL_FRAME, b"keyboard_interrupt"]
+                    outbound = [server_id] + envelope + [b""] + cancel_body
+                    log_routing_envelope(
+                        "Frontend->Backend(CANCEL)",
+                        frames,
+                        self.frontend_zmq_addr,
+                        self.backend_zmq_addr,
+                        server_id=server_id,
+                    )
+                    try:
+                        self.backend_socket.send_multipart(outbound)
+                    except zmq.ZMQError as exc:
+                        logging.warning("Cancel route failed for %s: %s", user_id, exc)
+                        self._reply_error(envelope, f"Server not ready/available for user {user_id}.")
+                    continue
+
+                if len(body) < 3:
+                    self._reply_error(envelope, "Invalid request framing.")
+                    continue
+
+                # Route INVOKE request:
+                # Route to appropriate server based on user_id; Server identity is user_id
                 # first frame(server_id) will not be delievered to server, it's used for routing(identify server) only
                 # so only send (envelope + b"" + body[1:]) to server
                 outbound = [server_id] + envelope + [b""] + body[1:]
                 # Log routing info
                 log_routing_envelope(
-                    "Frontend->Backend",
+                    "Frontend->Backend(INVOKE)",
                     frames,
                     self.frontend_zmq_addr,
                     self.backend_zmq_addr,
